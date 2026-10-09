@@ -4,14 +4,16 @@
    核心机制（一次一个 · 不循环 · 时间只在点击时减少）：
    初始只有 1 个"紧急呼救"目标在深处
    每次点击（点广告/点空白/空格/倾斜）= 一次"广告事件"：
-       → 恰好生成 1 个广告（固定序列 AD_SEQUENCE，各出现一次）：
-         · 全屏广告页素材（广告13/14/15）→ 手机竖屏全屏插页
-         · 多领域"恭喜中奖"动态广告（8 种 · 以 youwon 为视觉标准）：
-           话费 / 数码 / 外卖 / 游戏 / 出行 / 黄金 / 美妆 / 加油
+       → 恰好生成 1 个广告（固定序列 AD_SEQUENCE，共 34 条 · 各不重复 · 形态多样）：
+         · 全屏广告页素材 + 多领域"恭喜中奖" + 商品/视频/优惠券/大促/游戏…
+         · 含多种小弹窗（通知条 / 横幅 / 优惠券 / 系统弹窗 / 弹窗广告）
        → 点击 ✕ 关闭 = 误触跳转："正在打开……"（进度卡 87%）→ 又是广告
+          ★ 公益广告（黄金100秒 / 正确拨打120）：第 1 次点 ✕ 打开作品自带的"假网站"，
+            第 2 次点 ✕ 直接关闭这条广告（见 PSA_ADS 与 pages/ 目录）
+          ★ 少数广告（closable）可以真正叉掉：点 ✕ 从场景移除，不再跳转
        → 时间只在点击时减少（每次扣 1.5~2.2 秒，不随真实时间流逝）
-       → 序列放完不循环：继续点击只扣时间并提示"没有更多"
-       → 时间归零的那次点击：广告 = jackpot（中奖弹窗），随后整体结束
+       → 序列足够长：全程都有广告可点，不会出现"没有更多"
+       → 时间归零的那次点击：先出「抽奖页」，再出 jackpot「恭喜你中大奖」，随后整体结束
    ------------------------------------------------------------
    Arduino 接入点（按传感器动作幅度分发）：
        轻微倾斜 → handleSmallTilt()    与常规跳转一致
@@ -287,20 +289,50 @@ var PRIZE_DOMAINS = [
     btn: '立即激活加油卡', prizes: ['全年加油卡', '500元油费', '洗车年卡', '保养券', '补胎券'] }
 ];
 
-/* 固定播放序列（不重复、不循环）：
-   去掉了弹窗类截图，只保留 3 张全屏广告页素材（F）
-   + 8 个领域的"恭喜中奖"动态广告（P），交错排布，各出现一次。
-   一次点击 = 恰好取出序列中的下一个；全部放完后不再生成任何广告。 */
-var AD_SEQUENCE = [];
-(function buildAdSequence() {
-  var plan = ['F0','P0','P1','F1','P2','S','F2','P3','G','F3','P4','P5','F4','P6','R','F5','P7','F6'];
-  var F = AD_ASSETS.fullPage, T = { S: 'spin', G: 'playable', R: 'goldpop' };
-  plan.forEach(function (k) {
-    var c = k.charAt(0), n = +k.charAt(1);
-    if (c === 'F') AD_SEQUENCE.push({ type: 'imgfull', src: F[n] });
-    else if (c === 'P') AD_SEQUENCE.push({ type: 'prize', domain: n });
-    else AD_SEQUENCE.push({ type: T[c] });
-  });
+/* 固定播放序列（每条各出现一次、不重复）：
+   · 长度 ≥ 40 秒内最多可能的点击数 —— 保证全程都有广告，绝不会出现"没有更多"；
+   · 全屏真实素材图（F0~F6）7 张全部保留、分散排布（靠前，确保 40 秒内都能出现）；
+   · AI 生成的重复广告已精简为"每类一条"（商品/中奖/优惠券/小弹窗…）；
+   · psa      = 公益广告：点 ✕ 打开作品自带的"假网站"（分散排布、不重复）；
+   · closable = 少数可真正叉掉的广告（点 ✕ 会从场景里移除）。 */
+var AD_SEQUENCE = (function () {
+  var F = AD_ASSETS.fullPage;
+  return [
+    { type: 'product' },                       // 1
+    { type: 'imgfull', src: F[0] },            // 2  ▣ 图片广告
+    { type: 'coupon', closable: true },        // 3  可关闭
+    { type: 'psa', psa: 0 },                   // 4  ★ 黄金 100 秒 → 假网站
+    { type: 'imgfull', src: F[1] },            // 5  ▣ 图片广告（恢复）
+    { type: 'video' },                         // 6
+    { type: 'prize', domain: 0 },              // 7
+    { type: 'imgfull', src: F[2] },            // 8  ▣ 图片广告
+    { type: 'notification', closable: true },  // 9  可关闭
+    { type: 'spin' },                          // 10
+    { type: 'imgfull', src: F[3] },            // 11 ▣ 图片广告（恢复）
+    { type: 'promotion' },                     // 12
+    { type: 'native' },                        // 13
+    { type: 'imgfull', src: F[4] },            // 14 ▣ 图片广告
+    { type: 'game' },                          // 15
+    { type: 'psa', psa: 1 },                   // 16 ★ 正确拨打 120 → 假网站
+    { type: 'imgfull', src: F[5] },            // 17 ▣ 图片广告（恢复）
+    { type: 'banner', closable: true },        // 18 可关闭
+    { type: 'goldpop' },                       // 19
+    { type: 'imgfull', src: F[6] },            // 20 ▣ 图片广告（恢复）
+    { type: 'playable' },                      // 21
+    { type: 'prize', domain: 3 },              // 22
+    { type: 'bigsale' },                       // 23
+    { type: 'food' },                          // 24
+    { type: 'sysdialog', closable: true },     // 25 可关闭
+    { type: 'youwon' },                        // 26
+    { type: 'travel' },                        // 27
+    { type: 'popup', closable: true },         // 28 可关闭
+    { type: 'beauty' },                        // 29
+    { type: 'life' },                          // 30
+    { type: 'download' },                      // 31
+    { type: 'interstitial' },                  // 32
+    { type: 'recommendation' },                // 33
+    { type: 'redirect' }                       // 34
+  ];
 })();
 var adSeqPos = 0;   // 序列游标：已经放到第几个
 
@@ -309,6 +341,26 @@ function nextAdItem() {
   if (adSeqPos >= AD_SEQUENCE.length) return null;
   return AD_SEQUENCE[adSeqPos++];
 }
+
+/* ============ ★ 公益广告（点 ✕ 打开作品自带的"假网站"）★ ============
+   只有下面这两个广告被指定为"可跳转"：点它们的 ✕ →
+   新标签页打开对应假网站，该广告停在原地、不自动接下一条。
+   其余广告的 ✕ 行为完全不变。广告与页面一一对应，不重复。
+   页面文件放在 pages/ 目录（随作品一起托管，不是外部链接）。 */
+var PSA_THEME = {
+  bg: '#2a1216', bg2: '#160a0d', border: 'rgba(214,90,90,0.55)', edge: 0x8a4545,
+  accent: '#e05656', accent2: '#ffb03a', price: '#ffd24a', gold: '#ffd24a',
+  btnFill: '#c0392b', btnStroke: '#ff8a7a', text: '#ffecec', sub: '#d9a8a8',
+  photo: ['#5a2222', '#200c0c']
+};
+var PSA_ADS = [
+  { tag: '公益 · 急救', title: '黄金 100 秒', sub: '每一秒，都决定生死',
+    lines: ['心脏骤停 · 脑缺氧 4~6 分钟即不可逆', '每延迟 1 分钟 · 存活率下降约 10%'],
+    button: '了解为什么', page: 'pages/golden100.html' },
+  { tag: '公益 · 急救', title: '正确拨打 120', sub: '说清三件事，救护车快一步',
+    lines: ['① 详细地址   ② 患者情况   ③ 联系电话', '保持通话畅通 · 派人到路口接应'],
+    button: '看拨打要点', page: 'pages/call120.html' }
+];
 
 var _adImgCache = {};
 /* 加载并缓存素材：状态跟踪（loading / ok / error），路径显式编码避免中文 404 */
@@ -479,6 +531,7 @@ var TYPE_PROFILE = {
   prize:          { zBoost: 1.6, spread: 1.3 },   // 多领域中奖广告：与 youwon 同级（高潮广告）
   imgpopup:       { zBoost: 1.5, spread: 1.5 },   // 真实素材弹窗：悬浮在前页上方
   imgfull:        { zBoost: 0,   spread: 1.0 },   // 真实素材全屏页：正常堆叠
+  psa:            { zBoost: 0,   spread: 1.0 },   // ★ 公益广告：正常堆叠（点 ✕ 打开假网站）
   goldpop:        { zBoost: 1.5, spread: 1.5 },   // 金币雨红包弹窗：悬浮（jackpot 风）
   spin:           { zBoost: 1.5, spread: 1.5 }    // 幸运转盘弹窗：悬浮（jackpot 风）
 };
@@ -1200,6 +1253,42 @@ var PAGE_PAINTERS = {
     ctx.fillText(d.content, W / 2, 306);
     drawButton(ctx, (W - 320) / 2, 430, 320, 88, d.button, THEMES.system);
     drawAdBadge(ctx, 24, 24);
+  },
+
+  /* ★ 公益广告（120 急救 · 暗红）：点 ✕ 会打开作品自带的"假网站" */
+  psa: function (ctx, W, H, d) {
+    var th = PSA_THEME;
+    ctx.save();                                   // 顶部红色警示条
+    ctx.fillStyle = 'rgba(224,86,86,0.16)';
+    ctx.fillRect(6, 6, W - 12, 64);
+    ctx.restore();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = th.accent;                    // 顶部标签
+    ctx.font = 'bold 24px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(d.tag, W / 2, 48);
+    ctx.fillStyle = th.text;                      // 大标题
+    ctx.font = 'bold 82px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(d.title, W / 2, 240);
+    ctx.fillStyle = th.accent2;                   // 副标题（金）
+    ctx.font = 'bold 30px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText(d.sub, W / 2, 300);
+    ctx.strokeStyle = 'rgba(224,86,86,0.35)';     // 分隔线
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(64, 344);
+    ctx.lineTo(W - 64, 344);
+    ctx.stroke();
+    ctx.fillStyle = th.sub;                       // 要点两行
+    ctx.font = '26px "PingFang SC","Microsoft YaHei",sans-serif';
+    var lines = d.lines || [];
+    for (var i = 0; i < lines.length; i++) ctx.fillText(lines[i], W / 2, 402 + i * 48);
+    drawButton(ctx, (W - 340) / 2, H - 214, 340, 88, d.button, th);
+    ctx.fillStyle = th.sub;                       // 底部提示
+    ctx.font = '20px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('点击右上角 ✕ 了解详情', W / 2, H - 92);
+    drawAdBadge(ctx, 24, 24);
+    drawCloseBtn(ctx, W - 40, 40);
   },
 
   /* 1. 商品促销（电商红橙 · 大图主导）：大图向左出血 + 红底价格卡压角 + 红色购买按钮 */
@@ -3623,6 +3712,15 @@ function createTravelAd(index) {
 }
 
 /** 广告类页面（通用入口，type 决定布局） */
+/** ★ 公益广告（120 急救 · 暗红）：点 ✕ 打开作品自带的"假网站"（d.page） */
+function createPsaAd(index, extra) {
+  var i = (extra && extra.psa != null) ? extra.psa : (index % PSA_ADS.length);
+  var d = PSA_ADS[i];
+  var page = createAdPage({ type: 'psa', data: d, th: PSA_THEME, size: SIZES.large, canvasW: SIZES.large.cw, canvasH: SIZES.large.ch });
+  page.userData.jumpPage = d.page;   // ✕ 点击时读取：打开这个假网站
+  return page;
+}
+
 function createAdPage(opts) {
   opts.theme = 'ad';
   return createPage(opts);
@@ -3700,6 +3798,7 @@ function createNextPage(forceType, extra) {
   else if (type === 'prize')          page = createPrizeAd(index, extra && extra.domain);
   else if (type === 'goldpop')        page = createGoldPopAd(index);
   else if (type === 'spin')           page = createSpinAd(index);
+  else if (type === 'psa')            page = createPsaAd(index, extra);   // ★ 公益广告
   else                                page = createPopupAd(index);
 
   /* ---- 最终位姿：生成时一次性算好并锁定，之后永不改变 ---- */
@@ -3832,6 +3931,26 @@ function updateEmergencyMotion() {
   emergencyPage.position.z = emergencyCurrentZ;
 }
 
+/** ★ 真正关闭一条广告：从 pages / 场景中移除并释放资源（供少数可叉掉的广告使用） */
+function removeAdPage(page) {
+  var i = pages.indexOf(page);
+  if (i < 0) return;
+  pages.splice(i, 1);
+  for (var k = activeDynamics.length - 1; k >= 0; k--) {   // 摘掉它自己的逐帧动画
+    if (activeDynamics[k].page === page) activeDynamics.splice(k, 1);
+  }
+  scene.remove(page);
+  page.traverse(function (obj) {
+    if (obj.geometry) obj.geometry.dispose();
+    if (obj.material) {
+      if (obj.material.map) obj.material.map.dispose();
+      obj.material.dispose();
+    }
+  });
+  updateEmergencyDistance();   // 少一条广告 → 120 靠近一点
+  updateLayerOpacities();      // 按新深度重新刷新透明度
+}
+
 /* ---- 真实设备倾斜（移动端；桌面端 e.beta 为 null 自动跳过）---- */
 var tiltLastFired = 0;
 function setupTilt() {
@@ -3858,6 +3977,7 @@ function setupTilt() {
     extra = { src } 指定素材图，或 { domain } 指定中奖广告领域 */
 function spawnAdPage(type, onDone, extra) {
   var page = createNextPage(type, extra);
+  if (extra && extra.closable) page.userData.closable = true;   // ★ 少数可真正叉掉的广告
   updateEmergencyDistance();   // 新广告出现 → 120 后退一点
   animatePageIntoSpace(page, onDone);
   return page;
@@ -3871,21 +3991,15 @@ function pickInterruptType() {
 /**
  * 一次"广告事件"（新规则）：
  *   · 只发生在点击/空格/倾斜时 —— 一次点击 = 恰好一个广告页面；
- *   · 广告取自固定序列 AD_SEQUENCE（13 张真实素材各一次），点击多少次出现多少个；
- *   · 序列放完 → 不循环：点击只扣时间、提示"没有更多"，不再生成新广告；
+ *   · 广告取自固定序列 AD_SEQUENCE（30 条各不重复），点击多少次出现多少个；
+ *   · 序列足够长：全程都有广告可点，绝不出现"没有更多"；
  *   · 每次点击扣 1.5~2.2 秒；时间归零的那次点击，它的"广告"就是 jackpot。
  */
 function runAdEvent() {
   if (timebarFrozen) return;              // jackpot 已出 / 已拨 120：整体结束
   deductTime();                           // 时间只在点击时减少
   if (jackpotFired) return;               // 这次点击的广告 = jackpot，不再放素材
-  var item = nextAdItem();
-  if (!item) {
-    shake = 0.4;
-    showStatus('已到最后 · 没有更多广告了');
-    setTimeout(hideStatus, 1100);
-    return;
-  }
+  var item = nextAdItem() || { type: pickInterruptType() };   // 兜底：绝不出现"没有更多"
   shake = 1;
   showStatus('正在跳转……');
   spawnAdPage(item.type, function () {
@@ -3894,13 +4008,56 @@ function runAdEvent() {
   }, item);
 }
 
+/* ★ 在【新标签页】打开作品自带的"假网站"落地页（相对路径，随作品一起托管） */
+function openFakeSite(path) {
+  if (!path) return;
+  try { window.open(path, '_blank', 'noopener,noreferrer'); } catch (e) {}
+}
+
 /**
  * 误触关闭（叉掉效果已恢复）：点了 ✕ 不会关闭 ——
- * 先弹出"正在打开"加载页（进度永远卡在 87%），随后又出现一个新广告。
+ *   · ★ 指定公益广告（page.userData.jumpPage）：第 1 次 ✕ → 打开自带"假网站"（停在原地）；
+ *     第 2 次 ✕ → 直接关闭这条广告（只跳转一次）；
+ *   · ★ 少数可叉掉的广告（page.userData.closable）：真正关闭（从场景移除）；
+ *   · 其余广告：弹出"正在打开"加载页（进度永远卡在 87%），随后又出现一个新广告。
  * （作品对现实广告"关闭即跳转"机制的模拟，不是恶搞彩蛋）
  */
-function fakeCloseJump() {
+function fakeCloseJump(page) {
   if (timebarFrozen) return;               // 整体已结束：不再有任何反应
+
+  /* ★ 指定公益广告：第 1 次点 ✕ → 打开自带假网站；第 2 次点 ✕ → 直接关闭这条广告 */
+  var jumpPage = page && page.userData && page.userData.jumpPage;
+  if (jumpPage) {
+    if (!page.userData.jumpedOnce) {
+      page.userData.jumpedOnce = true;                     // 只跳转一次
+      shake = 0.6;
+      openFakeSite(jumpPage);
+      showStatus('已打开新页面 · 再点一次 ✕ 可关闭');
+      cooldownUntil = 0;                                   // 不设冷却：下一次点击即可继续
+      deductTime();                                        // 关闭也是一次触发：扣时
+      setTimeout(hideStatus, 1800);
+      return;                                              // 暂停：不自动接下一条
+    }
+    shake = 0.4;                                           // 第 2 次：直接关闭
+    showStatus('已关闭这条广告');
+    cooldownUntil = 0;
+    deductTime();
+    removeAdPage(page);
+    setTimeout(hideStatus, 1200);
+    return;
+  }
+
+  /* ★ 少数可叉掉的广告：点 ✕ 真正关闭（从场景移除），不再跳转 */
+  if (page && page.userData && page.userData.closable) {
+    shake = 0.4;
+    showStatus('已关闭这条广告');
+    cooldownUntil = 0;                                     // 不设冷却：下一次点空白即可继续
+    deductTime();                                          // 关闭也是一次触发：扣时
+    removeAdPage(page);
+    setTimeout(hideStatus, 1200);
+    return;
+  }
+
   shake = 0.7;
   showStatus('正在打开……');
   cooldownUntil = performance.now() + CONFIG.cooldown;   // 防连点失控
@@ -3908,13 +4065,9 @@ function fakeCloseJump() {
   if (jackpotFired) return;                              // 这次点击的广告 = jackpot
   spawnAdPage('redirect');                               // 1) 跳转加载页（进度永远卡在 87%）
   setTimeout(function () {
-    var item = nextAdItem();
-    if (item) {
-      showStatus('即将进入……');
-      spawnAdPage(item.type, null, item);                // 2) "加载完" → 又是广告
-    } else {
-      showStatus('已到最后 · 没有更多广告了');
-    }
+    var item = nextAdItem() || { type: pickInterruptType() };   // 兜底：绝不"没有更多"
+    showStatus('即将进入……');
+    spawnAdPage(item.type, null, item);                  // 2) "加载完" → 又是广告
     setTimeout(hideStatus, 900);
   }, 1400);
   setTimeout(hideStatus, 1300);
@@ -4047,16 +4200,17 @@ function hideStatus() {
    · 结束后时间冻结，不再重置、不再循环、不再生成任何广告；
    · 拨通 120 同样冻结（作品结束，时间失去意义）。
    ============================================================ */
-var TIMEBAR_TOTAL = 42;              // 总时长（秒）—— 只能被点击消耗（18 个广告 × 平均 1.85 秒 + 余量）
+var TIMEBAR_TOTAL = 40;              // 总时长（秒）—— 只能被点击消耗（≈21 次点击；序列 34 条够用，不会"没有更多"）
 var timebarRemain = TIMEBAR_TOTAL * 1000;
 var timebarFrozen = false;            // jackpot / 拨通 120 后冻结
 var jackpotFired = false;
-var timebarEl, timebarNumEl, timebarFillEl;
+var timebarEl, timebarNumEl, timebarFillEl, timebarTrackEl;
 
 function setupTimebar() {
   timebarEl = document.getElementById('timebar');
   timebarNumEl = document.getElementById('timebar-num');
   timebarFillEl = document.getElementById('timebar-fill');
+  timebarTrackEl = document.getElementById('timebar-track');
   renderTimebar();
 }
 
@@ -4071,6 +4225,47 @@ function renderTimebar() {
   timebarNumEl.textContent = fmtTimebar(sec);
   timebarFillEl.style.width = (clamp(sec / TIMEBAR_TOTAL, 0, 1) * 100) + '%';
   if (timebarEl) timebarEl.classList.toggle('low', sec <= 10);
+  applyTimebarDanger(sec);
+}
+
+/* ★ 最后 5 秒：每少 1 秒，倒计时数字 + "剩余时间"这一段更粗、更红、更大。
+   注意：只染"剩余时间"（进度条填充段），整条背景不染红。
+   只在点击扣时后推进（时间不随真实时间流逝）。 */
+function applyTimebarDanger(sec) {
+  if (!timebarTrackEl || !timebarFillEl) return;
+  var d = clamp((5 - sec) / 5, 0, 1);           // 5 秒→0，0 秒→1
+
+  /* 不在最后 5 秒：恢复默认（交给 CSS / .low 类） */
+  if (d <= 0) {
+    timebarTrackEl.style.height = '';
+    timebarFillEl.style.height = '';
+    timebarFillEl.style.background = '';
+    if (timebarNumEl) {
+      timebarNumEl.style.color = '';
+      timebarNumEl.style.fontSize = '';
+      timebarNumEl.style.fontWeight = '';
+    }
+    return;
+  }
+
+  var h = 3 + d * 15;                            // 进度条整体 3px → 18px（更粗、更明显）
+  timebarTrackEl.style.height = h + 'px';
+  timebarFillEl.style.height = h + 'px';
+  timebarTrackEl.style.boxShadow = 'none';       // 整条背景不染红
+
+  // 只有"剩余时间"这一段变红：#e06a5a → #ff1e1e
+  var r = Math.round(224 + (255 - 224) * d);
+  var g = Math.round(106 + (30 - 106) * d);
+  var b = Math.round(90 + (30 - 90) * d);
+  var col = 'rgb(' + r + ',' + g + ',' + b + ')';
+  timebarFillEl.style.background = col;
+
+  // 顶部倒计时数字：对应变红、变大、加粗
+  if (timebarNumEl) {
+    timebarNumEl.style.color = col;
+    timebarNumEl.style.fontSize = (15 + d * 13) + 'px';   // 15px → 28px
+    timebarNumEl.style.fontWeight = d > 0.3 ? '700' : '400';
+  }
 }
 
 /** 每次点击的代价：随机扣 1.5~2.2 秒（时间只在点击时减少）；
@@ -4095,9 +4290,19 @@ function triggerJackpot() {
   timebarFrozen = true;                          // 整体结束：时间停在此刻
   shake = 1;
   cooldownUntil = performance.now() + 999999;    // 永久锁定：不再生成任何广告
-  showStatus('JACKPOT · 时间耗尽 · 到此为止');
-  spawnAdPage('youwon');
-  setTimeout(hideStatus, 2600);
+  /* 1) 抽奖页（幸运大转盘）：自动开转，无需再点 */
+  showStatus('抽奖中……');
+  var spinPage = spawnAdPage('spin');
+  if (spinPage && spinPage.userData && spinPage.userData.paint) {
+    var sd = spinPage.userData.paint.data;
+    if (sd) { sd.state = 'spinning'; sd.speed = 6; }   // 转起来并自动减速落定
+  }
+  /* 2) 恭喜你中大奖（最后一页，永久保留） */
+  setTimeout(function () {
+    showStatus('JACKPOT · 恭喜你中大奖');
+    spawnAdPage('youwon');
+    setTimeout(hideStatus, 2600);
+  }, 2800);
 }
 
 /* ============================================================
@@ -4192,7 +4397,7 @@ function setupInteraction() {
         var d2 = dx * dx + dy * dy;
         var R = pt.closeBtn.r;                          // 画布像素半径（24）
         if (d2 <= (R * 6) * (R * 6)) {                  // 点 ✕ 及附近 144px：一律误触跳转
-          fakeCloseJump();
+          fakeCloseJump(pick.page);
           return;
         }
       }
