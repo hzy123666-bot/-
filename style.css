@@ -1,0 +1,135 @@
+/* ============================================================
+   《跳转之外》 style.css
+   只负责 3D 画布容器和 HTML 覆盖层
+   ============================================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0d0e11;
+  font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+}
+
+/* 3D 场景容器 */
+#scene-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+#scene-container:active {
+  cursor: grabbing;
+}
+
+/* 左上角作品信息 */
+#info {
+  position: fixed;
+  top: 28px;
+  left: 32px;
+  color: #e8e8e8;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+}
+
+#info h1 {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 6px;
+}
+
+#info p {
+  font-size: 11px;
+  color: #7a7d85;
+  letter-spacing: 2px;
+  margin-top: 6px;
+}
+
+/* 顶部剩余时间：数字 + 细进度条（克制，不解释机制） */
+#timebar {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+  text-align: center;
+}
+
+#timebar-num {
+  font-family: "Courier New", monospace;
+  font-size: 15px;
+  letter-spacing: 4px;
+  color: #9aa0a8;
+  margin-bottom: 6px;
+}
+
+#timebar-track {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+#timebar-fill {
+  width: 100%;
+  height: 100%;
+  background: #9aa0a8;
+  border-radius: 2px;
+  transition: width 0.2s linear, background 0.4s ease;
+}
+
+/* 低于 10 秒：整条转为警戒红 */
+#timebar.low #timebar-num {
+  color: #e06a5a;
+}
+
+#timebar.low #timebar-fill {
+  background: #e06a5a;
+}
+
+/* "正在跳转……" 状态提示：屏幕上方居中，克制（下移避让 timebar） */
+#status {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 5px;
+  color: #9aa0a8;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;               /* 默认隐藏 */
+  transition: opacity 0.35s ease;
+}
+
+#status.visible {
+  opacity: 1;
+}
+
+/* 右下角操作提示 */
+#hint {
+  position: fixed;
+  bottom: 24px;
+  right: 32px;
+  font-size: 11px;
+  color: #55585f;
+  letter-spacing: 2px;
+  z-index: 10;
+  pointer-events: none;
+  user-select: none;
+}

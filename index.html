@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跳转之外</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 3D 场景容器 -->
+  <div id="scene-container"></div>
+
+  <!-- 左上角作品信息 -->
+  <div id="info">
+    <h1>跳转之外</h1>
+    <p>Beyond the Jump · 逐次跳转测试版</p>
+  </div>
+
+  <!-- "正在跳转"状态提示（由 main.js 控制显示） -->
+  <div id="status"></div>
+
+  <!-- 顶部剩余时间（克制：数字 + 细进度条，不解释机制） -->
+  <div id="timebar">
+    <div id="timebar-num">00:30</div>
+    <div id="timebar-track"><div id="timebar-fill"></div></div>
+  </div>
+
+  <!-- 右下角操作提示 -->
+  <div id="hint">
+    点击 / 空格 = 模拟倾斜触发 &nbsp;·&nbsp; 拖动旋转 &nbsp;·&nbsp; 滚轮前后
+  </div>
+
+  <!-- Three.js 通过 CDN 加载 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
+  <!-- 主程序 -->
+  <script src="main.js?v=12"></script>
+</body>
+</html>
